@@ -36,8 +36,12 @@ class TodoApp(QMainWindow):
 
     def load_tasks(self):
         tasks = self.task_manager.load_tasks()
+        if not tasks:
+            # If tasks is empty, it might be due to an error or an empty file
+            # You might want to show a message to the user here
+            print("No tasks loaded. Starting with an empty list.")
         for task in tasks:
-            self.add_task_to_list(task['text'], task['completed'])
+            self.load_task_to_list(task['text'], task['completed'])
 
     def add_task(self):
         task_text, ok = QInputDialog.getText(self, "Add Task", "Enter task:")
@@ -45,6 +49,16 @@ class TodoApp(QMainWindow):
             self.add_task_to_list(task_text)
 
     def add_task_to_list(self, task_text, completed=False):
+        self.update_task_list(task_text, completed)
+        self.task_manager.add_task({'text': task_text, 'completed': completed})
+        self.save_tasks()  # Save when a new task is added
+        self.update_progress()
+
+    def load_task_to_list(self, task_text, completed=False):
+        self.update_task_list(task_text, completed)
+        self.update_progress()
+
+    def update_task_list(self, task_text, completed):
         item = QListWidgetItem(self.task_list)
         task_widget = TaskWidget(task_text)
         task_widget.checkbox.setChecked(completed)
@@ -53,9 +67,10 @@ class TodoApp(QMainWindow):
         self.task_list.setItemWidget(item, task_widget)
 
         task_widget.delete_button.clicked.connect(lambda: self.confirm_delete_task(item))
-        task_widget.checkbox.stateChanged.connect(self.update_progress)
+        task_widget.checkbox.stateChanged.connect(lambda: self.handle_task_state_change(task_text, task_widget.checkbox.isChecked()))
 
-        self.task_manager.add_task({'text': task_text, 'completed': completed})
+    def handle_task_state_change(self, task_text, completed):
+        self.task_manager.update_task_status(task_text, completed)
         self.update_progress()
 
     def confirm_delete_task(self, item):
@@ -77,6 +92,7 @@ class TodoApp(QMainWindow):
         task_text = task_widget.checkbox.text()
         self.task_list.takeItem(self.task_list.row(item))
         self.task_manager.remove_task({'text': task_text, 'completed': task_widget.checkbox.isChecked()})
+        self.save_tasks()  # Save when a task is deleted
         self.update_progress()
 
     def update_progress(self):
@@ -91,4 +107,5 @@ class TodoApp(QMainWindow):
         progress_percentage = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
         self.progress_bar.setValue(int(progress_percentage))
 
+    def save_tasks(self):
         self.task_manager.save_tasks()
